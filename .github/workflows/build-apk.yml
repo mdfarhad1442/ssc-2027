@@ -6,7 +6,95 @@
 #   https://github.com/<user>/<repo>/releases/latest/download/SSC2027.apk)
 # ============================================================================
 name: Build Android APK
+# ============================================================================
+#  SSC 2027 — Android APK builder
+#  প্রতিবার main ব্রাঞ্চে push করলে / হাতে "Run workflow" চাপলে APK তৈরি হবে।
+#  v1.2.0 এর মতো ট্যাগ push করলে GitHub Release-এ "SSC2027.apk" নামে আপলোড হবে
+#  (config.js এর APK_URL এই লিংকেই সেট করো:
+#   https://github.com/<user>/<repo>/releases/latest/download/SSC2027.apk)
+# ============================================================================
+name: Build Android APK
 
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'backend/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle (cache)
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Version info
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF#refs/tags/v}"
+          elif [ -f "../js/config.js" ]; then
+            NAME="$(grep -oP "VERSION:\s*'\K[^']+" ../js/config.js || echo 1.0.0)"
+          else
+            NAME="1.0.0"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$(( 100 + GITHUB_RUN_NUMBER ))" >> "$GITHUB_OUTPUT"
+          echo "Building version $NAME (code $(( 100 + GITHUB_RUN_NUMBER )))"
+
+      - name: Build debug APK (no keystore required)
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug \
+            -PversionCode=${{ steps.ver.outputs.code }} \
+            -PversionName=${{ steps.ver.outputs.name }}
+          mkdir -p ../dist
+          cp app/build/outputs/apk/debug/app-debug.apk ../dist/SSC2027.apk
+          ls -la ../dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: SSC2027-v${{ steps.ver.outputs.name }}-apk
+          path: dist/SSC2027.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/SSC2027.apk
+          name: SSC 2027 v${{ steps.ver.outputs.name }}
+          generate_release_notes: true
+          body: |
+            📲 **SSC 2027 Smart Study Companion — Android**
+            ডাউনলোড করো নিচের `SSC2027.apk` ফাইলটি → ফোনে খুলে Install চাপো।
+            (প্রথমবার “Unknown apps / অজানা উৎস” অনুমতি দিতে হতে পারে)
 on:
   push:
     branches: [main, master]
