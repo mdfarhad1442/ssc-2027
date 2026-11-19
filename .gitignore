@@ -1,0 +1,15 @@
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+dist/
+# Never commit signing secrets
+*.jks
+*.keystore
+android/keystore.properties
+# misc
+.DS_Store
+__pycache__/
