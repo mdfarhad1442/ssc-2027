@@ -1,0 +1,103 @@
+# ============================================================================
+#  SSC 2027 — Android APK builder
+#  প্রতিবার main ব্রাঞ্চে push করলে / হাতে "Run workflow" চাপলে APK তৈরি হবে।
+#  v1.2.0 এর মতো ট্যাগ push করলে GitHub Release-এ "SSC2027.apk" নামে আপলোড হবে
+#  (config.js এর APK_URL এই লিংকেই সেট করো:
+#   https://github.com/<user>/<repo>/releases/latest/download/SSC2027.apk)
+# ============================================================================
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'backend/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle (cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Version info
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            NAME="${GITHUB_REF#refs/tags/v}"
+          else
+            NAME="$(grep -oP "VERSION:\s*'\K[^']+" ../js/config.js || echo 1.0.0)"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$(( 100 + GITHUB_RUN_NUMBER ))" >> "$GITHUB_OUTPUT"
+          echo "Building version $NAME (code $(( 100 + GITHUB_RUN_NUMBER )))"
+
+      - name: Decode signing keystore (from secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.SSC_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "SSC_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "✅ Release keystore found — APK will be signed with your key."
+          else
+            echo "::warning title=No signing key::SSC_KEYSTORE_BASE64 secret is not set. The APK is signed with a temporary debug key, so future APKs may not install as an update over this one. See README → Android APK."
+          fi
+
+      - name: Build release APK
+        env:
+          SSC_KEYSTORE_PASSWORD: ${{ secrets.SSC_KEYSTORE_PASSWORD }}
+          SSC_KEY_ALIAS: ${{ secrets.SSC_KEY_ALIAS }}
+          SSC_KEY_PASSWORD: ${{ secrets.SSC_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease \
+            -PversionCode=${{ steps.ver.outputs.code }} \
+            -PversionName=${{ steps.ver.outputs.name }}
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk ../dist/SSC2027.apk
+          ls -la ../dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSC2027-v${{ steps.ver.outputs.name }}-apk
+          path: dist/SSC2027.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/SSC2027.apk
+          name: SSC 2027 v${{ steps.ver.outputs.name }}
+          generate_release_notes: true
+          body: |
+            📲 **SSC 2027 Smart Study Companion — Android**
+            ডাউনলোড করো নিচের `SSC2027.apk` ফাইলটি → ফোনে খুলে Install চাপো।
+            (প্রথমবার “Unknown apps / অজানা উৎস” অনুমতি দিতে হতে পারে)
