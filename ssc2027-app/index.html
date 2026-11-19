@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SSC 2027 · স্মার্ট স্টাডি সঙ্গী</title>
+  <meta name="description" content="SSC 2027 শিক্ষার্থীদের জন্য গেমিফাইড ৯০ দিনের স্মার্ট স্টাডি কম্প্যানিয়ন — রোডম্যাপ, ফোকাস টাইমার, ভুলের খাতা, স্কুল লিডারবোর্ড।">
+  <meta name="theme-color" content="#FFFBF7">
+  <meta name="color-scheme" content="light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SSC 2027">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/HindSiliguri-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/HindSiliguri-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <main id="view" aria-live="polite">
+      <div style="display:grid;place-items:center;height:80vh;text-align:center;color:#6E6A86">
+        <div><img src="assets/mascot.webp" alt="" width="140" style="margin:0 auto 10px"><div>লোড হচ্ছে…</div></div>
+      </div>
+    </main>
+    <nav id="nav" class="nav hide" aria-label="প্রধান নেভিগেশন"></nav>
+    <div id="toasts" aria-live="assertive"></div>
+    <canvas id="fx" aria-hidden="true"></canvas>
+  </div>
+  <noscript><p style="padding:20px;text-align:center">এই অ্যাপ চালাতে JavaScript চালু করো।</p></noscript>
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/native.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/extras.js"></script>
+  <script src="js/custom.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
