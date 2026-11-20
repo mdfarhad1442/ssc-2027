@@ -565,6 +565,7 @@
       <div class="menu">
         ${mi('go', '🏆', 'var(--mint-100)', L('প্রতিযোগিতা জোন', 'Competition zone'), L('স্কুল ও গ্রুপ লিডারবোর্ড', 'School & group leaderboards'), 'data-to="leaderboard"')}
         ${mi('go', '✏️', 'var(--lav-100)', L('কাস্টম প্ল্যান', 'Custom plan'), A.planCustomized && A.planCustomized() ? L('তোমার নিজের মতো সাজানো ✓', 'Customized by you ✓') : L('প্রতি সপ্তাহের কাজ নিজের মতো সাজাও', 'Arrange each week your way'), 'data-to="planedit"')}
+        ${mi('go', '✍️', 'var(--yellow-100)', L('রাইটিং তালিকা (বাংলা ও ইংরেজি)', 'Writing lists (Bangla & English)'), L('অনুচ্ছেদ, রচনা, দরখাস্ত, Paragraph, Story…', 'Paragraphs, essays, letters, stories…'), 'data-to="writing"')}
         ${mi('go', '📊', 'var(--peach-100)', L('সাপ্তাহিক পরীক্ষা ও পারফরম্যান্স', 'Weekly tests & performance'), '', 'data-to="tests"')}
         ${mi('go', '📒', 'var(--lav-100)', L('ভুলের খাতা', 'Mistake notebook'), N(A.errDue().length) + L(' টি রিভিউ বাকি', ' due for review'), 'data-to="errors"')}
         ${mi('go', '🧮', 'var(--yellow-100)', L('জিপিএ ক্যালকুলেটর', 'GPA calculator'), st.gpa && st.gpa.last ? L('সর্বশেষ হিসাব: ', 'Last result: ') + 'GPA ' + N(st.gpa.last.toFixed(2)) : L('নম্বর দিয়ে জিপিএ বের করো', 'Find your GPA from marks'), 'data-to="gpa"')}
@@ -1102,7 +1103,7 @@
       A.fx.confetti(36, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
       U.justId = id;
       if (t.testId && !S().tests[t.testId]) setTimeout(() => toast(L('পরীক্ষার নম্বরটাও লিখে রাখো 📊', 'Log your test score too 📊'), '📊', 2600), 1800);
-      setTimeout(refresh, 420);
+      clearTimeout(U._rt); U._rt = setTimeout(refresh, 420); // many fast taps → one re-render
     },
     taskOpen: (el) => {
       const t = A.plan().tasks[el.dataset.id]; if (!t) return;
@@ -1120,6 +1121,7 @@
               ${t.kind === 'reflect' ? `<button class="btn ghost block" data-a="reflect" data-w="${t.w}">🪞 ${L('রিফ্লেকশন লেখো', 'Write reflection')}</button>` : ''}
               ${t.kind === 'errrev' || t.kind === 'weak' ? `<button class="btn ghost block" data-a="go" data-to="errors">📒 ${L('ভুলের খাতা খোলো', 'Open mistake notebook')}</button>` : ''}
               ${t.sub ? `<button class="btn outline block" data-a="focusOn" data-sub="${t.sub}" data-n="${t.chs[0] || 0}">🎯 ${L('এই কাজে ফোকাস টাইমার চালাও', 'Start focus timer for this')}</button>` : ''}
+              ${t.kind === 'write' ? `<button class="btn primary block" data-a="wrOpen" data-k="${t.sub}:${t.chs[0]}">✍️ ${t.wr ? L('রাইটিং তালিকা এডিট করো', 'Edit writing list') : L('নিজের তালিকা দাও (যেমন: ১০টা অনুচ্ছেদের নাম)', 'Add your own list (e.g. 10 paragraph names)')}</button>` : ''}
               <button class="btn ghost block" data-a="peFromTask" data-id="${t.id}">✏️ ${L('প্ল্যানে এডিট করো (সময়/দিন বদলাও)', 'Edit in plan (time/day)')}</button>
               ${t.kind !== 'reflect' ? `<button class="btn ${done ? 'outline' : 'mint'} block" data-a="toggleTaskSheet" data-id="${t.id}" ${un ? '' : 'disabled'}>${done ? L('↺ অসম্পন্ন করো', '↺ Mark undone') : L('✓ সম্পন্ন করো', '✓ Mark complete')}</button>` : ''}
             </div><div style="height:6px"></div>`

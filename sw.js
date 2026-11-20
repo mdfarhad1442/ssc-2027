@@ -1,5 +1,5 @@
 /* SSC 2027 — Service Worker (offline-first + background nudges) */
-const VERSION = 'ssc27-v1.2.0';
+const VERSION = 'ssc27-v1.3.0';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/config.js', './js/data.js', './js/engine.js', './js/core.js', './js/native.js', './js/ui.js', './js/extras.js', './js/custom.js', './js/main.js',

@@ -50,13 +50,22 @@ public class MainActivity extends Activity {
     private String pendingSaveText;
     private int pendingNotifCb = -1;
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Notif.ensureChannels(this);
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
 
+        buildWebView();
+
+        handleIntent(getIntent());
+        if (state != null) web.restoreState(state);
+        else web.loadUrl(BASE + "index.html");
+    }
+
+    /** Creates (or re-creates after a renderer crash) the WebView + JS bridge. */
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private void buildWebView() {
         web = new WebView(this);
         web.setBackgroundColor(0xFFFFFBF7);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -82,15 +91,37 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new AppClient());
         web.setWebChromeClient(new AppChrome());
 
-        handleIntent(getIntent());
-        if (state != null) web.restoreState(state);
-        else web.loadUrl(BASE + "index.html");
+    }
+
+    private long lastRendererCrash = 0;
+    private int rendererCrashes = 0;
+
+    /**
+     * The WebView renderer can be killed by the system when memory is low (e.g. very fast
+     * taps on a low-RAM phone). Without handling this, Android kills the whole app.
+     * We rebuild the WebView instead — all data is safe in localStorage.
+     */
+    private void recoverRenderer() {
+        long now = System.currentTimeMillis();
+        rendererCrashes = now - lastRendererCrash < 30000 ? rendererCrashes + 1 : 1;
+        lastRendererCrash = now;
+        try {
+            if (web != null) {
+                web.removeJavascriptInterface("SSCAndroid");
+                ((android.view.ViewGroup) web.getParent()).removeView(web);
+                web.destroy();
+            }
+        } catch (Exception ignored) {}
+        web = null;
+        if (rendererCrashes > 3) { finish(); return; } // something is badly wrong — don't loop
+        buildWebView();
+        web.loadUrl(BASE + "index.html" + (rendererCrashes > 1 ? "#home" : ""));
     }
 
     @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
-        web.saveState(out);
+        if (web != null) web.saveState(out);
     }
 
     @Override
@@ -114,7 +145,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         isResumed = true;
-        web.onResume();
+        if (web != null) web.onResume();
         js("window.SSCNative&&SSCNative.onResume()");
     }
 
@@ -122,7 +153,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         isResumed = false;
         js("window.SSCNative&&SSCNative.onPause()");
-        web.onPause();
+        if (web != null) web.onPause();
         super.onPause();
     }
 
@@ -139,6 +170,7 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
+        if (web == null) { moveTaskToBack(true); return; }
         web.evaluateJavascript("(window.SSC_onBack&&window.SSC_onBack())?'1':'0'", v -> {
             if (v != null && v.contains("1")) return;
             moveTaskToBack(true);
@@ -248,6 +280,14 @@ public class MainActivity extends Activity {
 
     private class AppClient extends WebViewClient {
         @Override
+        public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+            Log.w("SSC2027", "WebView renderer gone (crashed=" + (Build.VERSION.SDK_INT >= 26 && detail != null && detail.didCrash()) + ") — rebuilding");
+            if (view != web) return true;
+            runOnUiThread(MainActivity.this::recoverRenderer);
+            return true;
+        }
+
+        @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
             Uri u = req.getUrl();
             if (!HOST.equals(u.getHost())) return null;
@@ -281,11 +321,6 @@ public class MainActivity extends Activity {
             return true;
         }
 
-        @Override
-        public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
-            recreate();
-            return true;
-        }
     }
 
     private class AppChrome extends WebChromeClient {

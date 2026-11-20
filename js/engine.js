@@ -40,7 +40,7 @@
               { id: `w${w}u${ui}c${c}b`, sub, chs: [c], kind: 'board', min: K.board.min, steps: [2] }
             ]);
           });
-        } else if (['lite', 'lang', 'test', 'revise'].includes(kind)) {
+        } else if (['lite', 'lang', 'test', 'revise', 'write'].includes(kind)) {
           chunk(chs, size || 1).forEach((part, pi) => {
             q.push([{ id: `w${w}u${ui}p${pi}`, sub, chs: part, kind, min: K[kind].min * part.length, steps: K[kind].steps.slice() }]);
           });

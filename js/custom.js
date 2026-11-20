@@ -137,7 +137,7 @@
       const load = m > 360 ? `<span class="tag peach">${L('অনেক চাপ!', 'Heavy!')}</span>` : !list.length ? `<span class="tag mint">${L('ফাঁকা', 'Free')}</span>` : '';
       const rows = list.map((t, i) => {
         const done = A.isDone(t.id);
-        const mod = t.custom ? `<span class="tag lav">✏️ ${L('নিজের', 'Mine')}</span>` : (t.moved || c.min[t.id]) ? `<span class="tag lav">✏️ ${L('বদলানো', 'Edited')}</span>` : '';
+        const mod = t.wr ? `<span class="tag yellow">✍️ ${L('তালিকা', 'List')}</span>` : t.kind === 'write' ? `<span class="tag peach">✍️ ${L('তালিকা দাও', 'Add list')}</span>` : t.custom ? `<span class="tag lav">✏️ ${L('নিজের', 'Mine')}</span>` : (t.moved || c.min[t.id]) ? `<span class="tag lav">✏️ ${L('বদলানো', 'Edited')}</span>` : '';
         return `<div class="pe-row ${done ? 'done' : ''}">
           <span class="pe-ic" style="background:${subBg(t.sub)};color:${subC(t.sub)}">${taskIcon(t)}</span>
           <button class="pe-main" data-a="peTask" data-id="${esc(t.id)}">
@@ -164,6 +164,7 @@
     return `${topbar(L('কাস্টম প্ল্যান', 'Custom plan'), `${L('সপ্তাহ ', 'Week ')}${N(w)} · ${A.fmtDate(A.dateOfDay(s))} – ${A.fmtDate(A.dateOfDay(e))}`)}
       ${tabsHtml('planedit')}
       <div class="chips mt">${weekChips}</div>
+      ${writingCard()}
       <div class="card lav tight mt-s small">💡 ${L('যেকোনো কাজে ট্যাপ করে সময় বদলাও, অন্য দিনে সরাও বা লুকাও। “+ কাজ” দিয়ে নিজের কাজ যোগ করো। মূল প্ল্যান সবসময় নিরাপদ — চাইলে এক ট্যাপে আগের মতো করা যাবে।', 'Tap any task to change its time, move it to another day or hide it. Use “+ Task” to add your own. The original plan is always safe — reset anytime.')}</div>
       <div class="card mt-s">
         <div class="eyebrow">${esc(L(wk.goal || '', wk.goalEn || wk.goal || ''))}</div>
@@ -190,7 +191,7 @@
     const p = P(), c = C();
     const t = p.tasks[id];
     if (!t) return { head: '<div class="grow h3">—</div>', body: '' };
-    const base = B().tasks[id];
+    const base = B().tasks[id] || (t.wr ? { day: t.baseDay, min: t.baseMin } : null);
     const modified = c.move[id] || c.min[id];
     const done = A.isDone(id);
     return {
@@ -201,8 +202,9 @@
         <div class="field"><label for="pe-day">${L('কোন দিনে করবে?', 'Which day?')}</label>${daySelect(t.day)}
           ${base && base.day !== t.day ? `<span class="hint">${L('মূল প্ল্যানে ছিল: দিন ', 'Originally: Day ')}${N(base.day)}</span>` : ''}</div>
         <button class="btn primary block mt" data-a="peSaveTask" data-id="${esc(id)}">✓ ${L('সংরক্ষণ করো', 'Save')}</button>
+        ${t.kind === 'write' ? `<button class="btn ghost block mt-s" data-a="wrOpen" data-k="${t.sub}:${t.chs[0]}">✍️ ${t.wr ? L('রাইটিং তালিকা এডিট করো', 'Edit writing list') : L('নিজের তালিকা দাও (নামগুলো লেখো)', 'Add your own list')}</button>` : ''}
         <div class="row mt-s">
-          <button class="btn outline grow sm" data-a="peHide" data-id="${esc(id)}">🙈 ${L('লুকাও', 'Hide')}</button>
+          ${t.wr ? '' : `<button class="btn outline grow sm" data-a="peHide" data-id="${esc(id)}">🙈 ${L('লুকাও', 'Hide')}</button>`}
           ${modified ? `<button class="btn ghost grow sm" data-a="peResetTask" data-id="${esc(id)}">↺ ${L('আগের মতো', 'Original')}</button>` : ''}
         </div>
         <p class="tiny muted mt-s">${L('লুকানো কাজ নিচের “লুকানো কাজ” থেকে যেকোনো সময় ফিরিয়ে আনা যাবে।', 'Hidden tasks can be restored anytime from “Hidden tasks”.')}</p>
@@ -274,7 +276,8 @@
     peDayOne: (el) => el.parentNode.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === el)),
 
     peSaveTask: (el) => {
-      const id = el.dataset.id; const c = C(); const b = B().tasks[id]; if (!b) return;
+      const id = el.dataset.id; const c = C(); const cur = P().tasks[id];
+      const b = B().tasks[id] || (cur && cur.wr ? { day: cur.baseDay, min: cur.baseMin } : null); if (!b) return;
       const m = readMin(); const d = +($('#pe-day') || {}).value || b.day;
       if (m === b.min) delete c.min[id]; else c.min[id] = m;
       const prevDay = P().tasks[id] ? P().tasks[id].day : b.day;
@@ -360,6 +363,155 @@
       changed(); refresh(); toast(L('মূল প্ল্যানে ফিরে গেছো', 'Back to the original plan'), '↺', 1600);
     }
   });
+
+  /* =========================================================================
+     WRITING LISTS — Bangla & English writing parts (#writing)
+     Students type the names of the paragraphs / essays / letters / stories they
+     will learn; App.plan() spreads them over the chosen weeks.
+     ========================================================================= */
+  X.PARENT.writing = 'planedit'; X.TAB_OF.writing = 'roadmap';
+  const MAX_ITEMS = 30;
+  const WR = () => C().writing;
+  const wrSubs = () => Object.keys(D.WRITING).filter(sb => (D.GROUPS[S().profile.group].subjects || []).includes(sb));
+  const catName = (k) => { const [sb, n] = k.split(':'); const ch = A.chapter(sb, +n); return ch ? ch.t : k; };
+  const meta = (k) => D.WRITE_META[k] || { min: 30, ex: [] };
+  function wrStats(k) {
+    const cat = WR()[k]; const items = cat && cat.items ? cat.items : [];
+    const done = items.filter(it => A.isDone('wr-' + it.id)).length;
+    return { n: items.length, done, from: cat ? cat.from : 0, to: cat ? cat.to : 0 };
+  }
+  A.wrStats = wrStats;
+  function writingCard() {
+    const keys = []; wrSubs().forEach(sb => D.WRITING[sb].forEach(n => keys.push(sb + ':' + n)));
+    const filled = keys.filter(k => wrStats(k).n).length;
+    return `<button class="card tight mt-s wr-cta tap" data-a="go" data-to="writing">
+      <span class="wr-cta-ic">✍️</span>
+      <span class="grow" style="min-width:0;text-align:left"><span class="bold" style="display:block">${L('বাংলা ও ইংরেজি রাইটিং তালিকা', 'Bangla & English writing lists')}</span>
+      <span class="tiny muted" style="display:block">${filled ? L(`${N(filled)}/${N(keys.length)}টি অংশে তালিকা দেওয়া আছে`, `${filled}/${keys.length} parts have a list`) : L('অনুচ্ছেদ, রচনা, দরখাস্ত, Paragraph, Story… নিজের নামগুলো দাও', 'Paragraphs, essays, letters, stories… add your own names')}</span></span>
+      ${ic('chevR', 'sm')}</button>`;
+  }
+  A.writingCard = writingCard;
+
+  SCREENS.writing = function () {
+    if (!S().profile) return '';
+    const cw = A.weekOfDay(A.currentDay());
+    const groups = wrSubs().map(sb => {
+      const rows = D.WRITING[sb].map(n => {
+        const k = sb + ':' + n; const st = wrStats(k);
+        const sub = st.n ? `${N(st.n)}${L('টি', '')} · ${N(st.done)} ${L('শেষ', 'done')} · ${L('সপ্তাহ ', 'Wk ')}${N(st.from)}–${N(st.to)}` : L('এখনো তালিকা দেওয়া হয়নি — ট্যাপ করে নাম লেখো', 'No list yet — tap to add names');
+        return `<button class="menu-item" data-a="wrOpen" data-k="${k}">
+          <span class="mi" style="background:${subBg(sb)};color:${subC(sb)}">${st.n ? '📝' : '✍️'}</span>
+          <span class="grow" style="min-width:0"><span class="bold small" style="display:block">${esc(catName(k))}</span>
+          <span class="tiny ${st.n ? 'muted' : ''}" style="display:block;${st.n ? '' : 'color:var(--peach-600)'}">${sub}</span>
+          ${st.n ? `<span class="wr-bar"><i style="width:${Math.round(st.done / st.n * 100)}%;background:${subC(sb)}"></i></span>` : ''}</span>
+          ${ic('chevR', 'sm')}</button>`;
+      }).join('');
+      return `<div class="section-title"><h3>${esc(A.subName(sb))}</h3><span class="tag gray">${L('রাইটিং', 'Writing')}</span></div><div class="menu">${rows}</div>`;
+    }).join('');
+    return `${topbar(L('রাইটিং তালিকা', 'Writing lists'), L('বাংলা ও ইংরেজির লেখার অংশ নিজের মতো সাজাও', 'Plan your Bangla & English writing'))}
+      <div class="card peach tight small mt-s">✍️ ${L('যে অনুচ্ছেদ, রচনা, দরখাস্ত, Paragraph, Story ইত্যাদি শিখবে সেগুলোর নাম দাও। অ্যাপ সেগুলো তোমার বেছে নেওয়া সপ্তাহগুলোতে ভাগ করে প্ল্যানে বসিয়ে দেবে। MCQ, ব্যাকরণ আর পাঠ্যবইয়ের অংশ আগের মতোই প্ল্যানে থাকবে।', 'Type the paragraphs, essays, letters, stories… you will learn. The app spreads them over the weeks you pick. MCQ, grammar and textbook parts stay in the plan as before.')}</div>
+      ${groups}
+      <p class="tiny muted center mt">${L('এখন সপ্তাহ ', 'Current week ')}${N(cw)} · ${L('তালিকা শুধু তোমার ফোনে সেভ থাকে', 'Saved only on this phone')}</p>
+      <div style="height:24px"></div>`;
+  };
+
+  function wrSheet(k) {
+    const cat = WR()[k]; const m = meta(k); const [sb] = k.split(':');
+    const cw = A.weekOfDay(A.currentDay());
+    const from = cat ? cat.from : Math.min(cw, 11), to = cat ? cat.to : Math.max(Math.min(cw, 11), 11);
+    const min = cat ? cat.min : m.min;
+    const items = cat ? cat.items : [];
+    const done = items.filter(it => A.isDone('wr-' + it.id)).length;
+    const text = items.map(it => it.t).join('\n');
+    const opt = (sel) => Array.from({ length: 12 }, (_, i) => i + 1).map(w => { const [s0, e0] = D.WEEK_RANGES[w - 1]; return `<option value="${w}" ${w === sel ? 'selected' : ''}>${L('সপ্তাহ ', 'Week ')}${N(w)}${w === cw ? ' 📍' : ''}</option>`; }).join('');
+    const isEn = sb[0] === 'e';
+    return {
+      head: `<div class="pe-ic lg" style="background:${subBg(sb)};color:${subC(sb)}">✍️</div><div class="grow"><div class="eyebrow">${esc(A.subName(sb))}</div><div class="h3">${esc(catName(k))}</div></div>`,
+      body: `
+        <div class="field"><label for="wr-list">${L('কোনগুলো শিখবে? প্রতি লাইনে একটা নাম', 'What will you learn? One name per line')}</label>
+          <textarea id="wr-list" class="input" rows="7" style="min-height:160px;line-height:1.6" placeholder="${isEn ? 'e.g.\nTraffic Jam\nMobile Phone\nTree Plantation' : 'যেমন:\nবিজয় দিবস\nবৃক্ষরোপণ\nডিজিটাল বাংলাদেশ'}">${esc(text)}</textarea>
+          <span class="hint" id="wr-count">${L('সর্বোচ্চ ', 'Max ')}${N(MAX_ITEMS)}${L('টি', '')}</span></div>
+        ${m.ex && m.ex.length ? `<div class="field"><label>${L('জনপ্রিয় টপিক — ট্যাপ করলে তালিকায় যোগ হবে', 'Popular topics — tap to add')}</label><div class="chips-wrap" id="wr-sug">${m.ex.map(x => `<button class="chip ${items.some(it => it.t.toLowerCase() === x.toLowerCase()) ? 'on' : ''}" data-a="wrSug" data-t="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''}
+        <div class="field"><label>${L('কোন সপ্তাহগুলোতে ভাগ হবে?', 'Spread over which weeks?')}</label>
+          <div class="row gap-s"><select id="wr-from" class="select" style="flex:1">${opt(from)}</select><span class="muted">→</span><select id="wr-to" class="select" style="flex:1">${opt(to)}</select></div></div>
+        <div class="field"><label>${L('প্রতিটার জন্য সময়', 'Time for each')}</label><div class="chips-wrap" id="wr-min">${[15, 20, 25, 30, 40, 45, 60].map(v => `<button class="chip ${v === +min ? 'on' : ''}" data-a="wrMin" data-v="${v}">${mins(v)}</button>`).join('')}</div></div>
+        <div class="banner info mt" id="wr-prev"></div>
+        ${items.length ? `<p class="tiny muted mt-s">✅ ${L('শেষ করেছ: ', 'Done: ')}${N(done)}/${N(items.length)} · ${L('নাম না বদলালে সম্পন্ন অবস্থা থেকে যাবে।', 'Unchanged names keep their done status.')}</p>` : ''}
+        <button class="btn primary block mt" data-a="wrSave" data-k="${k}">${items.length ? L('✓ তালিকা আপডেট করো', '✓ Update list') : L('✓ প্ল্যানে বসিয়ে দাও', '✓ Add to my plan')}</button>
+        ${items.length ? `<button class="btn ghost block mt-s" data-a="wrClear" data-k="${k}" style="color:#D23C3C">🗑️ ${L('তালিকা মুছে ফেলো', 'Remove this list')}</button>` : ''}
+        <div style="height:8px"></div>`
+    };
+  }
+  const parseList = () => {
+    const raw = (($('#wr-list') || {}).value || '').split(/\n|;/).map(x => x.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, '').trim().slice(0, 90)).filter(Boolean);
+    const out = []; const seen = {};
+    raw.forEach(x => { const key = x.toLowerCase(); if (!seen[key]) { seen[key] = 1; out.push(x); } });
+    return out;
+  };
+  function wrPreview() {
+    const box = $('#wr-prev'); if (!box) return;
+    const n = parseList().length; const f = +($('#wr-from') || {}).value || 1, t = +($('#wr-to') || {}).value || 1;
+    const cnt = $('#wr-count');
+    if (cnt) { cnt.textContent = L(`${N(n)}টি নাম · সর্বোচ্চ ${N(MAX_ITEMS)}টি`, `${n} names · max ${MAX_ITEMS}`); cnt.style.color = n > MAX_ITEMS ? '#D23C3C' : ''; }
+    if (t < f) { box.className = 'banner warn mt'; box.textContent = L('শেষ সপ্তাহ শুরুর সপ্তাহের আগে হতে পারবে না', 'End week can’t be before the start week'); return; }
+    if (!n) { box.className = 'banner info mt'; box.textContent = L('নাম লিখলে এখানে দেখাবে প্রতি সপ্তাহে কয়টা করে পড়বে।', 'Type names to see how many per week.'); return; }
+    const w = t - f + 1; const per = n / w;
+    box.className = 'banner ' + (per > 5 ? 'warn' : 'ok') + ' mt';
+    box.textContent = per >= 1
+      ? L(`${N(n)}টি লেখা ${N(w)} সপ্তাহে ভাগ হবে — সপ্তাহে প্রায় ${N(Math.ceil(per))}টি করে।`, `${n} items over ${w} weeks — about ${Math.ceil(per)} per week.`) + (per > 5 ? L(' একটু বেশি চাপ! সপ্তাহ বাড়িয়ে দাও।', ' That’s heavy — add more weeks.') : '')
+      : L(`${N(n)}টি লেখা ${N(w)} সপ্তাহে ছড়িয়ে যাবে — কয়েক সপ্তাহে একটা করে।`, `${n} items over ${w} weeks — one every few weeks.`);
+  }
+  document.addEventListener('input', (e) => { if (e.target && e.target.id === 'wr-list') wrPreview(); });
+  document.addEventListener('change', (e) => { if (e.target && (e.target.id === 'wr-from' || e.target.id === 'wr-to')) wrPreview(); });
+
+  Object.assign(ACT, {
+    wrOpen: (el) => {
+      const k = el.dataset.k; if (!k) return;
+      const open = () => { A.ui.openSheet(() => wrSheet(k)); setTimeout(wrPreview, 30); };
+      open();
+    },
+    wrSug: (el) => {
+      const ta = $('#wr-list'); if (!ta) return; const t = el.dataset.t;
+      const lines = ta.value.split('\n').map(x => x.trim()).filter(Boolean);
+      const i = lines.findIndex(x => x.toLowerCase() === t.toLowerCase());
+      if (i >= 0) { lines.splice(i, 1); el.classList.remove('on'); } else { lines.push(t); el.classList.add('on'); }
+      ta.value = lines.join('\n'); wrPreview(); A.haptic(6);
+    },
+    wrMin: (el) => el.parentNode.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === el)),
+    wrSave: (el) => {
+      const k = el.dataset.k; const names = parseList();
+      const f = +($('#wr-from') || {}).value || 1, t = +($('#wr-to') || {}).value || 11;
+      if (!names.length) { toast(L('অন্তত একটা নাম লেখো', 'Write at least one name'), '✍️'); const ta = $('#wr-list'); if (ta) { ta.classList.add('bad'); ta.focus(); } return; }
+      if (names.length > MAX_ITEMS) { toast(L(`সর্বোচ্চ ${N(MAX_ITEMS)}টি নাম দেওয়া যাবে`, `Max ${MAX_ITEMS} names`), '⚠️'); return; }
+      if (t < f) { toast(L('সপ্তাহের সীমা ঠিক করো', 'Fix the week range'), '⚠️'); return; }
+      const minEl = $('#wr-min .chip.on'); const min = minEl ? +minEl.dataset.v : meta(k).min;
+      const old = (WR()[k] && WR()[k].items) || [];
+      const byName = {}; old.forEach(it => { byName[it.t.toLowerCase()] = it; });
+      const items = names.map(nm => { const o = byName[nm.toLowerCase()]; return o ? { id: o.id, t: nm } : { id: uid(), t: nm }; });
+      // removed names: forget their per-task edits (XP already earned stays)
+      const keepIds = {}; items.forEach(it => { keepIds[it.id] = 1; });
+      old.forEach(it => { if (!keepIds[it.id]) { const id = 'wr-' + it.id; delete C().min[id]; delete C().move[id]; delete C().hide[id]; dropFromOrders(id); } });
+      WR()[k] = { items, from: f, to: t, min, at: Date.now() };
+      changed(); A.haptic(12); A.sfx.play('done');
+      A.ui.closeSheet().then(refresh);
+      toast(L(`${N(items.length)}টি লেখা সপ্তাহ ${N(f)}–${N(t)} জুড়ে প্ল্যানে বসানো হলো ✍️`, `${items.length} items planned over weeks ${f}–${t} ✍️`), '✨', 2400);
+    },
+    wrClear: async (el) => {
+      const k = el.dataset.k; await A.ui.closeSheet();
+      if (!(await confirmBox(L('তালিকা মুছবে?', 'Remove this list?'), L('এই অংশের তালিকা মুছে আগের সাধারণ রাইটিং কাজে ফিরে যাবে। অর্জিত XP থাকবে।', 'The list is removed and the plan goes back to the general writing task. Earned XP stays.'), L('মুছে ফেলো', 'Remove'), true))) return;
+      const cat = WR()[k]; if (cat) cat.items.forEach(it => { const id = 'wr-' + it.id; delete C().min[id]; delete C().move[id]; delete C().hide[id]; dropFromOrders(id); });
+      delete WR()[k]; changed(); refresh();
+    }
+  });
+
+  // Subject screen (Bangla 2nd, English 1st/2nd): shortcut to the writing lists
+  const origSubject = SCREENS.subject;
+  SCREENS.subject = function (sub) {
+    const html = origSubject(sub);
+    if (!D.WRITING[sub] || !S().profile) return html;
+    const i = html.indexOf('<div class="chips mt">');
+    return i < 0 ? html : html.slice(0, i) + writingCard() + html.slice(i);
+  };
 
   function reorder(el, dir) {
     const day = +el.dataset.day, id = el.dataset.id;

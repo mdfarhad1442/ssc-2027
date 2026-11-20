@@ -105,7 +105,7 @@
      (hide / move / minutes / order / own tasks) are applied on top and cached by revision. */
   function customState() {
     const c = S.custom || (S.custom = {});
-    ['items', 'hide', 'move', 'min', 'order'].forEach(k => { if (!c[k] || typeof c[k] !== 'object') c[k] = {}; });
+    ['items', 'hide', 'move', 'min', 'order', 'writing'].forEach(k => { if (!c[k] || typeof c[k] !== 'object') c[k] = {}; });
     if (typeof c.rev !== 'number') c.rev = 0;
     return c;
   }
@@ -119,17 +119,42 @@
   }
   function applyCustom(b, c) {
     const empty = (o) => { for (const k in o) return false; return true; };
-    if (empty(c.items) && empty(c.hide) && empty(c.move) && empty(c.min) && empty(c.order)) return b;
+    const WR = c.writing || {};
+    const wrKeys = Object.keys(WR).filter(k => WR[k] && Array.isArray(WR[k].items) && WR[k].items.length);
+    if (empty(c.items) && empty(c.hide) && empty(c.move) && empty(c.min) && empty(c.order) && !wrKeys.length) return b;
+    const wrSet = {}; wrKeys.forEach(k => { wrSet[k] = 1; });
     const tasks = {}; const byDay = {};
     const push = (t) => { (byDay[t.day] = byDay[t.day] || []).push(t.id); };
     for (let d = 1; d <= 90; d++) {
       (b.byDay[d] || []).forEach(id => {
         const t = b.tasks[id]; if (c.hide[id]) return;
+        if (t.kind === 'write' && wrSet[t.sub + ':' + t.chs[0]]) return; // replaced by the student's own list
         let nt = t; const mv = +c.move[id], mn = +c.min[id];
         if (mv || mn) { nt = Object.assign({}, t); if (mv >= 1 && mv <= 90) { nt.day = mv; nt.w = weekOfDay(mv); nt.moved = true; } if (mn > 0) nt.min = mn; }
         tasks[id] = nt;
       });
     }
+    // Writing lists (paragraphs, essays, letters…) → spread evenly over the chosen weeks
+    wrKeys.forEach((k, ci) => {
+      const cat = WR[k]; const sub = k.split(':')[0], n = +k.split(':')[1];
+      if (!D.SUBJECTS[sub]) return;
+      const from = Math.min(12, Math.max(1, +cat.from || 1)), to = Math.min(12, Math.max(from, +cat.to || 11));
+      const nW = to - from + 1, P = cat.items.length;
+      const wkOf = cat.items.map((_, i) => Math.floor(i * nW / P));
+      const per = new Array(nW).fill(0); wkOf.forEach(x => per[x]++);
+      const seen = new Array(nW).fill(0);
+      const bm = Math.max(5, +cat.min || (D.WRITE_META[k] || {}).min || D.KINDS.write.min);
+      cat.items.forEach((it, i) => {
+        const wi = wkOf[i], w = from + wi; const [s0, e0] = D.WEEK_RANGES[w - 1];
+        const study = Math.max(1, e0 - s0); // keep the weekly review day light
+        const dIdx = (Math.floor((seen[wi]++ + 0.5) * study / per[wi]) + ci * 2) % study;
+        const baseDay = s0 + dIdx; const id = 'wr-' + it.id;
+        if (c.hide[id]) return;
+        const mv = +c.move[id], mn = +c.min[id];
+        const day = mv >= 1 && mv <= 90 ? mv : baseDay;
+        tasks[id] = { id, wr: true, wrKey: k, title: String(it.t || ''), sub, chs: [n], kind: 'write', min: mn > 0 ? mn : bm, baseMin: bm, baseDay, day, w: weekOfDay(day), moved: day !== baseDay, steps: D.KINDS.write.steps.slice() };
+      });
+    });
     Object.values(c.items).forEach(it => {
       const K = D.KINDS[it.kind] ? it.kind : 'custom';
       (it.days || []).forEach(d => {
@@ -206,10 +231,13 @@
   Object.assign(App, { subName, chapter, chLabel, stepBits, stepDone, stepCount, subjectStats, masteredChapters, setStep });
 
   function taskTitle(t) {
+    if (t.wr) return t.title;
     if (t.custom) return t.title || (t.sub ? subName(t.sub) : L('নিজের কাজ', 'My task'));
     return subName(t.sub);
   }
   function taskSubtitle(t) {
+    if (t.wr) { const ch = chapter(t.sub, t.chs[0]); return subName(t.sub, true) + ' · ' + (ch ? ch.t : ''); }
+    if (t.kind === 'write' && t.chs.length === 1) { const ch = chapter(t.sub, t.chs[0]); return (ch ? ch.t : '') + L(' — নিজের তালিকা দাও ✍️', ' — add your own list ✍️'); }
     if (t.custom) {
       const parts = [];
       if (t.title && t.sub) parts.push(subName(t.sub, true));
@@ -345,8 +373,8 @@
   // (hiding tasks is allowed, but it can't be used to farm the +100 XP week bonus).
   function weekFair(w) {
     const b = basePlan(); if (!b || !b.weeks[w - 1]) return true;
-    const baseN = b.weeks[w - 1].days.reduce((a, d) => a + d.ids.length, 0);
-    const keep = weekTasks(w).filter(t => !t.custom).length;
+    const baseN = b.weeks[w - 1].days.reduce((a, d) => a + d.ids.filter(id => b.tasks[id].kind !== 'write').length, 0);
+    const keep = weekTasks(w).filter(t => !t.custom && t.kind !== 'write').length;
     return keep >= Math.ceil(baseN * 0.6);
   }
   App.weekFair = weekFair;
@@ -475,9 +503,12 @@
   /* ------------------------------ Audio ------------------------------ */
   let actx = null, alarmLoop = null;
   function ctx() { if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C(); } if (actx.state === 'suspended') actx.resume(); return actx; }
+  let liveTones = 0;
   function tone(freq, start, dur, type = 'sine', vol = 0.18) {
+    if (liveTones > 14) return; // rapid taps: never pile up audio nodes
     const c = ctx(); if (!c) return;
     const o = c.createOscillator(), g = c.createGain();
+    liveTones++; o.onended = () => { liveTones = Math.max(0, liveTones - 1); try { o.disconnect(); g.disconnect(); } catch (e) {} };
     o.type = type; o.frequency.setValueAtTime(freq, c.currentTime + start);
     g.gain.setValueAtTime(0.0001, c.currentTime + start);
     g.gain.exponentialRampToValueAtTime(vol, c.currentTime + start + 0.015);
@@ -488,6 +519,8 @@
     unlock() { try { ctx(); } catch (e) {} },
     play(name) {
       if (!S.settings.sound) return;
+      const now = Date.now(); this._last = this._last || {};
+      if (now - (this._last[name] || 0) < 90) return; this._last[name] = now;
       try {
         if (name === 'tick') tone(660, 0, 0.08, 'triangle', 0.08);
         else if (name === 'done') { tone(784, 0, 0.12, 'triangle', 0.14); tone(1175, 0.08, 0.2, 'triangle', 0.12); }
@@ -509,6 +542,8 @@
   /* ------------------------------ Effects ------------------------------ */
   App.fx = {
     xpFloat(n, evt) {
+      const live = document.querySelectorAll('.xp-float');
+      if (live.length >= 3) live[0].remove();
       const x = evt && evt.clientX ? evt.clientX : window.innerWidth / 2;
       const y = evt && evt.clientY ? evt.clientY : window.innerHeight / 2;
       const el = document.createElement('div');
@@ -516,22 +551,50 @@
       el.style.left = x + 'px'; el.style.top = (y - 20) + 'px';
       document.body.appendChild(el); setTimeout(() => el.remove(), 1200);
     },
+    // One shared particle system: new bursts are ADDED to the running animation (capped),
+    // the canvas is only resized when the viewport changes — no memory spikes on rapid taps.
+    _cf: null,
     confetti(amount = 90, origin) {
       const cv = document.getElementById('fx'); if (!cv) return;
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      const r = cv.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1);
-      cv.width = r.width * dpr; cv.height = r.height * dpr;
-      const c = cv.getContext('2d'); c.scale(dpr, dpr);
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (document.hidden) return;
+      const lite = document.documentElement.classList.contains('lite');
+      const st = this._cf || (this._cf = { ps: [], raf: 0, c: null, w: 0, h: 0, dpr: 1 });
+      // Measure the CONTAINER, never the canvas itself: a canvas' layout size follows its pixel
+      // buffer, so measuring it and multiplying by devicePixelRatio grew the buffer ~3× on every
+      // task completion → after a few taps the renderer ran out of memory and the app crashed.
+      const host = cv.parentElement || document.body;
+      const r = host.getBoundingClientRect();
+      const dpr = Math.min(lite ? 1.25 : 2, window.devicePixelRatio || 1);
+      const W = Math.min(2048, Math.max(1, Math.round(r.width * dpr))), H = Math.min(4096, Math.max(1, Math.round(r.height * dpr)));
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; st.c = null; }
+      if (!st.c) st.c = cv.getContext('2d');
+      st.w = r.width; st.h = r.height; st.dpr = dpr;
+      const MAX = lite ? 110 : 200;
+      amount = Math.min(Math.round(amount * (lite ? 0.6 : 1)), MAX);
       const cols = ['#7B61FF', '#1FB383', '#FF8A5C', '#FFD15C', '#3D8BFF', '#F78FB3'];
       const ox = origin ? origin.x - r.left : r.width / 2, oy = origin ? origin.y - r.top : r.height * 0.35;
-      const ps = Array.from({ length: amount }, () => ({ x: ox, y: oy, vx: (Math.random() - 0.5) * 9, vy: -Math.random() * 10 - 3, s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, c: cols[(Math.random() * cols.length) | 0], shape: Math.random() > 0.5 }));
-      let f = 0; cancelAnimationFrame(this._raf);
+      for (let k = 0; k < amount; k++) st.ps.push({ x: ox, y: oy, vx: (Math.random() - 0.5) * 9, vy: -Math.random() * 10 - 3, s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, c: cols[(Math.random() * cols.length) | 0], shape: Math.random() > 0.5, a: 0 });
+      if (st.ps.length > MAX) st.ps.splice(0, st.ps.length - MAX);
+      if (st.raf) return;
       const step = () => {
-        c.clearRect(0, 0, r.width, r.height); f++;
-        ps.forEach(p => { p.vy += 0.28; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr; c.save(); c.translate(p.x, p.y); c.rotate(p.r); c.fillStyle = p.c; c.globalAlpha = Math.max(0, 1 - f / 140); if (p.shape) c.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); else { c.beginPath(); c.arc(0, 0, p.s / 2.6, 0, 7); c.fill(); } c.restore(); });
-        if (f < 140) this._raf = requestAnimationFrame(step); else c.clearRect(0, 0, r.width, r.height);
+        const c = st.c; if (!c) { st.raf = 0; st.ps.length = 0; return; }
+        c.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+        c.clearRect(0, 0, st.w, st.h);
+        let keep = 0;
+        for (let k = 0; k < st.ps.length; k++) {
+          const p = st.ps[k]; p.a++; p.vy += 0.28; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          if (p.a >= 130 || p.y > st.h + 30) continue;
+          st.ps[keep++] = p;
+          c.save(); c.translate(p.x, p.y); c.rotate(p.r); c.fillStyle = p.c; c.globalAlpha = Math.max(0, 1 - p.a / 130);
+          if (p.shape) c.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); else { c.beginPath(); c.arc(0, 0, p.s / 3, 0, 6.283); c.fill(); }
+          c.restore();
+        }
+        st.ps.length = keep;
+        if (keep && !document.hidden) st.raf = requestAnimationFrame(step);
+        else { st.raf = 0; st.ps.length = 0; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height); }
       };
-      step();
+      st.raf = requestAnimationFrame(step);
     }
   };
 

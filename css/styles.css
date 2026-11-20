@@ -535,7 +535,7 @@ textarea.input { height: auto; min-height: 96px; padding: 12px 16px; resize: ver
 @keyframes toastOut { to { opacity: 0; transform: translateY(-14px); } }
 
 /* ---------------- Celebrations ---------------- */
-#fx { position: absolute; inset: 0; z-index: 92; pointer-events: none; }
+#fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 92; pointer-events: none; }
 .celebrate { position: absolute; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; background: radial-gradient(circle at 50% 40%, rgba(123, 97, 255, .95), rgba(40, 28, 100, .97)); color: #fff; opacity: 0; transition: opacity .35s; }
 .celebrate.show { opacity: 1; }
 .celebrate .cel-img { width: 190px; }
@@ -784,3 +784,10 @@ html.lite .screen { animation-duration: .24s; }
 html.lite .onb-hero img { filter: none; }
 html.lite { --sh-1: 0 2px 10px rgba(60, 40, 140, .07); --sh-2: 0 6px 22px rgba(60, 40, 140, .10); }
 html.lite .screen:not(.no-anim) .task.just-done, html.lite .task.just-done { animation: taskPop .5s var(--spring) !important; }
+
+/* ==== v1.3 — writing lists ==== */
+.wr-cta { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: linear-gradient(120deg, #FFF6E5, #FFEFE8); box-shadow: none; border: 1.5px solid #FFE1C7; }
+.wr-cta-ic { width: 42px; height: 42px; border-radius: 14px; background: #fff; display: grid; place-items: center; font-size: 20px; flex: none; }
+.wr-bar { display: block; height: 5px; border-radius: 9px; background: var(--line-2); margin-top: 6px; overflow: hidden; }
+.wr-bar i { display: block; height: 100%; border-radius: 9px; }
+#wr-sug .chip, #wr-min .chip { height: auto; min-height: 34px; padding: 6px 12px; white-space: normal; text-align: left; line-height: 1.35; }

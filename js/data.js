@@ -134,12 +134,39 @@
     [61, 67], [68, 74], [75, 81], [82, 90]
   ];
 
+  /* ---------------- Writing parts (student-made lists) ----------------
+     For these items the plan does NOT prescribe board book / test paper practice.
+     Students type the names of the paragraphs, essays, letters, stories… they will learn
+     and the app spreads them over the weeks they choose (see App.plan / custom.js). */
+  const WRITING = { b2: [12, 13, 14, 15, 16, 17], e1: [16, 17, 18, 19, 20, 21], e2: [10, 11, 12, 13] };
+  const PARA_EN = ['Traffic Jam', 'Mobile Phone', 'Tree Plantation', 'Load Shedding', 'Climate Change', 'Digital Bangladesh', 'Your School Library', 'A Book Fair', 'Female Education', 'The Padma Bridge'];
+  const WRITE_META = {
+    'b2:12': { min: 25, ex: ['বিজয় দিবস', 'বৃক্ষরোপণ', 'ডিজিটাল বাংলাদেশ', 'পদ্মা সেতু', 'মোবাইল ফোন', 'যানজট', 'বইমেলা', 'শীতের সকাল', 'স্বাস্থ্যই সকল সুখের মূল', 'মাদকাসক্তি'] },
+    'b2:13': { min: 30, ex: ['ছুটির জন্য প্রধান শিক্ষকের কাছে আবেদন', 'বিনা বেতনে অধ্যয়নের আবেদন', 'বিদ্যালয়ে বিজ্ঞানাগার স্থাপনের আবেদন', 'পাঠাগার স্থাপনের আবেদন', 'শিক্ষাসফরের অনুমতি চেয়ে আবেদন', 'এলাকার রাস্তা সংস্কারের আবেদন', 'বন্ধুকে জন্মদিনের শুভেচ্ছা জানিয়ে চিঠি', 'পরীক্ষার প্রস্তুতি জানিয়ে বাবাকে চিঠি'] },
+    'b2:14': { min: 20, ex: [] },
+    'b2:15': { min: 20, ex: ['পরিশ্রম সৌভাগ্যের প্রসূতি', 'শিক্ষাই জাতির মেরুদণ্ড', 'সময় ও স্রোত কারও জন্য অপেক্ষা করে না', 'দুর্জন বিদ্বান হইলেও পরিত্যাজ্য', 'ভোগে নয়, ত্যাগেই প্রকৃত সুখ', 'কীর্তিমানের মৃত্যু নাই', 'অর্থই অনর্থের মূল', 'স্বদেশের উপকারে নাই যার মন, কে বলে মানুষ তারে? পশু সেই জন'] },
+    'b2:16': { min: 25, ex: ['বিদ্যালয়ে বার্ষিক ক্রীড়া প্রতিযোগিতা', 'এলাকায় ডেঙ্গুর প্রকোপ', 'বন্যাকবলিত এলাকার দুর্দশা', 'বিদ্যালয়ে বৃক্ষরোপণ কর্মসূচি', 'শহরের যানজট পরিস্থিতি', 'বিদ্যালয়ে বিজ্ঞানমেলা অনুষ্ঠিত'] },
+    'b2:17': { min: 45, ex: ['স্বাধীনতা দিবস', 'বাংলাদেশের মুক্তিযুদ্ধ', 'শ্রমের মর্যাদা', 'বিজ্ঞান ও প্রযুক্তি', 'পরিবেশ দূষণ', 'ডিজিটাল বাংলাদেশ', 'বাংলাদেশের ষড়ঋতু', 'কম্পিউটার ও তথ্যপ্রযুক্তি', 'জলবায়ু পরিবর্তন', 'স্বদেশপ্রেম'] },
+    'e1:16': { min: 30, ex: [] },
+    'e1:17': { min: 20, ex: [] },
+    'e1:18': { min: 25, ex: PARA_EN },
+    'e1:19': { min: 25, ex: ['A Thirsty Crow', 'Honesty is the Best Policy', 'The Greedy Dog', 'Robert Bruce and the Spider', 'The Ant and the Grasshopper', 'The Liar Shepherd Boy', 'Unity is Strength', 'The Golden Goose'] },
+    'e1:20': { min: 25, ex: [] },
+    'e1:21': { min: 25, ex: ['Letter to a friend about your SSC preparation', 'E-mail to a friend about a picnic', 'Letter to your mother about your hostel life', 'Dialogue between two friends about reading newspapers', 'Dialogue between you and a doctor', 'Dialogue with a shopkeeper about buying a book'] },
+    'e2:10': { min: 25, ex: PARA_EN },
+    'e2:11': { min: 25, ex: ['Application for leave of absence', 'Application for a full free studentship', 'Application for a testimonial', 'Application for setting up a computer lab', 'Application for permission to go on a study tour', 'Application for arranging a farewell party'] },
+    'e2:12': { min: 35, ex: ['Application for the post of a Computer Operator', 'Application for the post of a Receptionist', 'Application for the post of an Assistant Teacher (English)'] },
+    'e2:13': { min: 45, ex: ['Climate Change', 'Digital Bangladesh', 'Your Aim in Life', 'The Importance of Learning English', 'Environment Pollution', 'A Visit to a Historical Place', 'Science in Everyday Life', 'The Padma Bridge'] }
+  };
+  const isWriting = (sub, n) => !!(WRITING[sub] && WRITING[sub].includes(n));
+
   /* ---------------- Task kinds (time & 4-step mapping) ---------------- */
   const KINDS = {
     read:   { bn: 'মূল বই + সূত্র নোট', en: 'Textbook + formula notes', min: 60, steps: [1], tone: 'lav' },
     board:  { bn: 'বোর্ড CQ + MCQ (২০২২–২৬)', en: 'Board CQ + MCQ (2022–26)', min: 90, steps: [2], tone: 'blue' },
     lite:   { bn: 'রিডিং + SQ + বোর্ড MCQ', en: 'Reading + SQ + board MCQ', min: 40, per: true, steps: [1, 2], tone: 'mint' },
-    lang:   { bn: 'পড়া + লেখা অনুশীলন', en: 'Read + writing practice', min: 30, per: true, steps: [1, 2], tone: 'pink' },
+    lang:   { bn: 'পাঠ + MCQ / প্রশ্ন অনুশীলন', en: 'Lesson + MCQ / question practice', min: 30, per: true, steps: [1, 2], tone: 'pink' },
+    write:  { bn: 'লেখা অনুশীলন · নিজের তালিকা', en: 'Writing practice · your list', min: 40, per: true, steps: [1, 2], tone: 'yellow' },
     test:   { bn: 'টেস্ট পেপার CQ + SQ', en: 'Test paper CQ + SQ', min: 30, per: true, steps: [3], tone: 'peach' },
     prac:   { bn: 'ব্যবহারিক খাতা', en: 'Practical notebook', min: 60, steps: [], tone: 'mint' },
     revise: { bn: 'Error Log রিভিশন', en: 'Error log revision', min: 15, per: true, steps: [4], tone: 'lav' },
@@ -218,9 +245,9 @@
     W(5, 'বাকি (★★/★) অধ্যায়ের মূল বই রিডিং + সংক্ষিপ্ত প্রশ্ন + বোর্ড MCQ', 'Remaining (★★/★) chapters: reading + short Qs + board MCQ',
       p2w5, core.slice(0, 3));
     W(6, 'বাংলা ১ম ও ২য় পত্র—সাহিত্য, ব্যাকরণ ও নির্মিতি', 'Bangla 1st & 2nd paper — literature, grammar & composition',
-      [['b1', except('b1', B1_FIRST), 'lang', 3], ['b2', all('b2'), 'lang', 3]], ['b1', 'b2', groupKey === 'science' ? 'hm' : 'gm']);
+      [['b1', except('b1', B1_FIRST), 'lang', 3], ['b2', except('b2', WRITING.b2), 'lang', 3], ['b2', WRITING.b2.slice(), 'write', 1]], ['b1', 'b2', groupKey === 'science' ? 'hm' : 'gm']);
     W(7, 'ইংরেজি রাইটিং, গ্রামার এবং ICT', 'English writing, grammar & ICT',
-      [['e1', all('e1'), 'lang', 3], ['e2', all('e2'), 'lang', 3], ['ict', all('ict'), 'lite', 1]], ['e1', 'e2', 'ict']);
+      [['e1', except('e1', WRITING.e1), 'lang', 3], ['e1', WRITING.e1.slice(), 'write', 1], ['e2', except('e2', WRITING.e2), 'lang', 3], ['e2', WRITING.e2.slice(), 'write', 1], ['ict', all('ict'), 'lite', 1]], ['e1', 'e2', 'ict']);
     const w8 = [[social, all(social), 'lite', 2], ['rel', all('rel'), 'lite', 2]];
     core.forEach(s => w8.push([s, star(s, 3), 'test', 4]));
     if (groupKey === 'science') {
@@ -349,5 +376,5 @@
 
   const DISTRICTS = ['বাগেরহাট', 'বান্দরবান', 'বরগুনা', 'বরিশাল', 'ভোলা', 'বগুড়া', 'ব্রাহ্মণবাড়িয়া', 'চাঁদপুর', 'চাঁপাইনবাবগঞ্জ', 'চট্টগ্রাম', 'চুয়াডাঙ্গা', 'কুমিল্লা', 'কক্সবাজার', 'ঢাকা', 'দিনাজপুর', 'ফরিদপুর', 'ফেনী', 'গাইবান্ধা', 'গাজীপুর', 'গোপালগঞ্জ', 'হবিগঞ্জ', 'জামালপুর', 'যশোর', 'ঝালকাঠি', 'ঝিনাইদহ', 'জয়পুরহাট', 'খাগড়াছড়ি', 'খুলনা', 'কিশোরগঞ্জ', 'কুড়িগ্রাম', 'কুষ্টিয়া', 'লক্ষ্মীপুর', 'লালমনিরহাট', 'মাদারীপুর', 'মাগুরা', 'মানিকগঞ্জ', 'মেহেরপুর', 'মৌলভীবাজার', 'মুন্সিগঞ্জ', 'ময়মনসিংহ', 'নওগাঁ', 'নড়াইল', 'নারায়ণগঞ্জ', 'নরসিংদী', 'নাটোর', 'নেত্রকোনা', 'নীলফামারী', 'নোয়াখালী', 'পাবনা', 'পঞ্চগড়', 'পটুয়াখালী', 'পিরোজপুর', 'রাজবাড়ী', 'রাজশাহী', 'রাঙামাটি', 'রংপুর', 'সাতক্ষীরা', 'শরীয়তপুর', 'শেরপুর', 'সিরাজগঞ্জ', 'সুনামগঞ্জ', 'সিলেট', 'টাঙ্গাইল', 'ঠাকুরগাঁও'];
 
-  window.SSC_DATA = { ICONS, SUBJECTS, GROUPS, RELIGIONS, PHASES, WEEK_RANGES, KINDS, STEPS, BADGES, LEVEL_NAMES, MSG, DISTRICTS, buildPlan };
+  window.SSC_DATA = { ICONS, SUBJECTS, GROUPS, RELIGIONS, PHASES, WEEK_RANGES, KINDS, STEPS, BADGES, LEVEL_NAMES, MSG, DISTRICTS, buildPlan, WRITING, WRITE_META, isWriting };
 })();
